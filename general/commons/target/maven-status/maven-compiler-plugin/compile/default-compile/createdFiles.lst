@@ -1,0 +1,8 @@
+lab6\models\MusicBand.class
+lab6\util\Packet.class
+lab6\models\Color.class
+lab6\util\CommandPayload.class
+lab6\util\CommandResult.class
+lab6\models\Coordinates.class
+lab6\models\Person.class
+lab6\models\MusicGenre.class

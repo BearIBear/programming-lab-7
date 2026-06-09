@@ -1,0 +1,37 @@
+package lab6.server.commands;
+
+
+import java.util.PriorityQueue;
+
+import lab6.models.MusicBand;
+import lab6.server.managers.CollectionManager;
+import lab6.util.CommandResult;
+
+/**
+ * Команда для добавления элемента, если его значение превышает наибольший элемент
+ *
+ * @author Михаил
+ */
+public class AddIfMax extends Command {
+    public AddIfMax(CollectionManager collectionManager) {
+        super("add_if_max", "добавить новый элемент в коллекцию, если его значение превышает значение наибольшего элемента этой коллекции", 0, collectionManager);
+    }
+
+    @Override
+    public CommandResult run(String[] args, MusicBand bandToAdd) {
+        CommandResult commandResult = checkArgAmount(args);
+        if (!commandResult.isContinueFlag()) {
+            return commandResult;
+        }
+
+        PriorityQueue<MusicBand> bands = collectionManager.getCollection();
+        if (bands.stream().anyMatch(band -> band.compareTo(bandToAdd) > -1)) {
+            commandResult.setMessage("Банда не добавлена");
+            return commandResult;
+        }
+
+        collectionManager.addElement(bandToAdd);
+        commandResult.setMessage("Банда добавлена успешно");
+        return commandResult;
+    }
+}
