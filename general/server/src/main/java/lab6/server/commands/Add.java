@@ -2,6 +2,7 @@ package lab6.server.commands;
 
 
 import lab6.models.MusicBand;
+import lab6.server.MainServer;
 import lab6.server.managers.CollectionManager;
 import lab6.util.CommandResult;
 
@@ -22,8 +23,14 @@ public class Add extends Command {
             return commandResult;
         }
 
-        collectionManager.addElement(band);
-        commandResult.setMessage("Банда добавлена успешно");
+        String username = MainServer.currentUser.get();
+        if (databaseManager.addBand(band, username)) {
+            collectionManager.addLoadedElement(band); // Добавляем с ID из БД
+            commandResult.setMessage("Группа добавлена успешно!");
+        } else {
+            commandResult.setContinueFlag(false);
+            commandResult.setMessage("Ошибка: не удалось сохранить группу в базу данных.");
+        }
         return commandResult;
     }
 }

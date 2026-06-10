@@ -14,14 +14,18 @@ import lab6.server.commands.Command;
  */
 public class CommandManager {
     private final Map<String, Command> commandsList = new HashMap<>();
+    private DatabaseManager databaseManager;
     private ArrayList<File> scriptFiles = new ArrayList<>();
     private int recursionLimit = 5;
     private boolean recursionForcedExit;
     
-    public CommandManager() {}
+    public CommandManager(DatabaseManager databaseManager) {
+        this.databaseManager = databaseManager;
+    }
 
     public void register(Command command) {
         command.setCommandManager(this);
+        command.setDatabaseManager(this.databaseManager);
         commandsList.put(command.getName(), command);
     }
 

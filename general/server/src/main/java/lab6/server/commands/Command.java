@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 import lab6.models.MusicBand;
 import lab6.server.managers.CollectionManager;
 import lab6.server.managers.CommandManager;
+import lab6.server.managers.DatabaseManager;
 import lab6.util.CommandResult;
 
 /**
@@ -19,6 +20,7 @@ public abstract class Command {
     private final int argsAmount;
     protected CommandManager commandManager;
     protected CollectionManager collectionManager;
+    protected DatabaseManager databaseManager;
 
     public Command(String name, String desc, int argsAmount, CollectionManager collectionManager) {
         this.name = name;
@@ -47,6 +49,14 @@ public abstract class Command {
 
     public void setCommandManager(CommandManager commandManager) {
         this.commandManager = commandManager;
+    }
+
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
+    }
+
+    public void setDatabaseManager(DatabaseManager databaseManager) {
+        this.databaseManager = databaseManager;
     }
 
     public CommandResult checkArgAmount(String[] args) {

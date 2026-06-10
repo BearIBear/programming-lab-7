@@ -2,6 +2,7 @@ package lab6.server.commands;
 
 
 import lab6.models.MusicBand;
+import lab6.server.MainServer;
 import lab6.server.managers.CollectionManager;
 import lab6.util.CommandResult;
 
@@ -19,11 +20,16 @@ public class Clear extends Command {
     public CommandResult run(String[] args, MusicBand band) {
         CommandResult commandResult = checkArgAmount(args);
         if (!commandResult.isContinueFlag()) {
-
             return commandResult;
         }
-        collectionManager.clearCollection();
-        CollectionManager.setNextId(1);
+        
+        String username = MainServer.currentUser.get();
+        if (databaseManager.clearBands(username)) {
+            collectionManager.getCollection().removeIf(b -> b.getOwnerUsername().equals(username));
+            commandResult.setMessage("Ваши элементы успешно удалены из коллекции.");
+        } else {
+            commandResult.setMessage("В коллекции не найдено ваших элементов или произошла ошибка БД.");
+        }
         return commandResult;
     }
 }

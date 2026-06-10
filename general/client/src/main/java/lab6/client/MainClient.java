@@ -39,7 +39,8 @@ import org.jline.builtins.Completers.FileNameCompleter;
 import org.apache.commons.lang3.SerializationUtils;
 
 /**
- * Главный класс приложения, содержащий точку входа и инициализацию компонентов JLine и команд
+ * Главный класс приложения, содержащий точку входа и инициализацию компонентов
+ * JLine и команд
  *
  * @author Михаил
  */
@@ -69,20 +70,20 @@ class MainClient {
                         }
                         serverAddr = tempAddr;
                         clientSocket.setSoTimeout(5000);
-    
-        
+
                         ConsoleManager consoleManager = new ConsoleManager(terminal);
-        
+
                         System.out.println("Клиент запущен, пытаемся передать UUID");
                         Packet sendPacket = new Packet(clientUUID, 1, 0, null);
                         byte[] serializedPacket = SerializationUtils.serialize(sendPacket);
-                        DatagramPacket sendDatagramPacket = new DatagramPacket(serializedPacket, 1024, serverAddr, 37582);
+                        DatagramPacket sendDatagramPacket = new DatagramPacket(serializedPacket, 1024, serverAddr,
+                                37582);
                         clientSocket.send(sendDatagramPacket);
                         System.out.println("UUID отправлен успешно");
-        
+
                         byte[] receiveBuffer = new byte[1024];
                         DatagramPacket receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
-                        
+
                         for (int i = 0;; i++) {
                             try {
                                 if (i > 0) {
@@ -95,7 +96,7 @@ class MainClient {
                                 System.out.println("Получение команд провалилось...");
                             }
                         }
-        
+
                         ArrayList<Packet> packets = new ArrayList<>();
                         Packet receivedPacket = SerializationUtils.deserialize(receiveBuffer);
                         packets.add(receivedPacket);
@@ -105,17 +106,18 @@ class MainClient {
                             packets.add(receivedPacket);
                         }
                         String[] commandNames = (String[]) Packet.restoreObject(packets);
-                        commandNames = Arrays.stream(commandNames).filter(Predicate.not(name -> name.equals("save"))).toArray(String[]::new);
+                        commandNames = Arrays.stream(commandNames).filter(Predicate.not(name -> name.equals("save")))
+                                .toArray(String[]::new);
                         System.out.println("Имена команд получены успешно");
-        
+
                         String commands = "\\b(" + String.join("|", commandNames) + "|" + "exit" + ")\\b";
                         final Pattern commandsPattern = Pattern.compile(commands, Pattern.CASE_INSENSITIVE);
                         List<String> commandNamesList = Arrays.stream(commandNames).toList();
-        
+
                         receiveBuffer = new byte[1024];
                         receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
                         clientSocket.receive(receivePacket);
-        
+
                         packets = new ArrayList<>();
                         receivedPacket = SerializationUtils.deserialize(receiveBuffer);
                         packets.add(receivedPacket);
@@ -126,14 +128,14 @@ class MainClient {
                         }
                         String[] filesRaw = (String[]) Packet.restoreObject(packets);
                         System.out.println("Имена файлов получены успешно");
-        
+
                         String files = String.join("|", filesRaw);
                         files = files.replace(".", "\\.");
                         files = files.replace("(", "\\(");
                         files = files.replace(")", "\\)");
                         files = "\\b(" + files + ")\\b";
                         final Pattern filesPattern = Pattern.compile(files);
-        
+
                         Highlighter consoleHighlighter = new Highlighter() {
                             @Override
                             public AttributedString highlight(LineReader reader, String buffer) {
@@ -141,38 +143,38 @@ class MainClient {
                                 if (buffer.length() <= 1) {
                                     return builder.append(buffer).toAttributedString();
                                 }
-        
+
                                 Matcher matcherCommand = commandsPattern.matcher(buffer);
                                 Matcher matcherFiles = filesPattern.matcher(buffer);
-        
+
                                 boolean resultCommand = matcherCommand.find();
                                 boolean resultFile = matcherFiles.find();
-        
+
                                 if (!resultCommand && !resultFile) {
                                     builder.append(buffer);
                                     return builder.toAttributedString();
                                 }
-        
+
                                 if (resultCommand) {
                                     builder.append(buffer.substring(0, matcherCommand.start()));
                                     builder.styled(
                                             AttributedStyle.BOLD.foreground(AttributedStyle.BLUE),
                                             buffer.substring(matcherCommand.start(), matcherCommand.end()));
-        
+
                                     if (!resultFile) {
                                         builder.append(buffer.substring(matcherCommand.end()));
                                         return builder.toAttributedString();
                                     }
                                 }
-        
+
                                 if (resultFile) {
                                     int previousEnd;
                                     if (!resultCommand) {
-                                        previousEnd = 0; 
+                                        previousEnd = 0;
                                     } else {
                                         previousEnd = matcherCommand.end();
                                     }
-        
+
                                     if (previousEnd > matcherFiles.start()) {
                                         try {
                                             matcherFiles.find();
@@ -183,17 +185,18 @@ class MainClient {
                                     } else {
                                         builder.append(buffer.substring(previousEnd, matcherFiles.start()));
                                     }
-        
+
                                     builder.styled(
                                             AttributedStyle.BOLD.foreground(AttributedStyle.YELLOW),
                                             buffer.substring(matcherFiles.start(), matcherFiles.end()));
-                                    builder.append(buffer.substring(matcherFiles.end())); 
+                                    builder.append(buffer.substring(matcherFiles.end()));
                                 }
                                 return builder.toAttributedString();
                             }
                         };
-                        
-                        AggregateCompleter dynamicCompleter = new AggregateCompleter(new StringsCompleter(commandNames), new FileNameCompleter());
+
+                        AggregateCompleter dynamicCompleter = new AggregateCompleter(new StringsCompleter(commandNames),
+                                new FileNameCompleter());
                         LineReader reader = LineReaderBuilder.builder()
                                 .terminal(terminal)
                                 .completer(dynamicCompleter)
@@ -202,26 +205,103 @@ class MainClient {
                                 .highlighter(consoleHighlighter)
                                 .build();
                         consoleManager.setReader(reader);
-        
+
+                        String username = "";
+                        String password = "";
+                        boolean loggedIn = false;
+                        while (!loggedIn) {
+                            terminal.writer().println("Выберите действие:");
+                            terminal.writer().println("1. Войти");
+                            terminal.writer().println("2. Зарегистрироваться");
+                            terminal.writer().println("3. Выйти");
+                            terminal.flush();
+                            String choice = reader.readLine("> ").trim();
+                            if (choice.equals("3") || choice.equalsIgnoreCase("exit")) {
+                                works = false;
+                                break;
+                            }
+                            boolean isRegister = choice.equals("2") || choice.equalsIgnoreCase("register");
+                            if (!choice.equals("1") && !choice.equals("2") && !choice.equalsIgnoreCase("login")
+                                    && !choice.equalsIgnoreCase("register")) {
+                                terminal.writer().println("Неверный выбор. Пожалуйста, введите 1 или 2.");
+                                terminal.flush();
+                                continue;
+                            }
+                            username = reader.readLine("Введите имя пользователя: ").trim();
+                            if (username.isBlank()) {
+                                terminal.writer().println("Имя пользователя не может быть пустым.");
+                                terminal.flush();
+                                continue;
+                            }
+                            password = reader.readLine("Введите пароль: ", '*').trim();
+                            if (password.isBlank()) {
+                                terminal.writer().println("Пароль не может быть пустым.");
+                                terminal.flush();
+                                continue;
+                            }
+
+                            CommandPayload authPayload = new CommandPayload(
+                                    isRegister ? "register" : "login",
+                                    new String[0],
+                                    null,
+                                    username,
+                                    password,
+                                    isRegister);
+
+                            ArrayList<Packet> authPackets = (ArrayList<Packet>) Packet.packObject(clientUUID,
+                                    authPayload);
+                            Packet.clientSendPackets(clientSocket, authPackets, serverAddr, 37582);
+
+                            receiveBuffer = new byte[1024];
+                            receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+                            clientSocket.receive(receivePacket);
+
+                            ArrayList<Packet> responsePackets = new ArrayList<>();
+                            receivedPacket = SerializationUtils.deserialize(receiveBuffer);
+                            responsePackets.add(receivedPacket);
+                            for (byte i = 1; i < receivedPacket.getPacketsAmount(); i++) {
+                                clientSocket.receive(receivePacket);
+                                receivedPacket = SerializationUtils.deserialize(receiveBuffer);
+                                responsePackets.add(receivedPacket);
+                            }
+                            CommandResult authResult = (CommandResult) Packet.restoreObject(responsePackets);
+                            if (authResult.isContinueFlag()) {
+                                terminal.writer().println(authResult.getMessage());
+                                terminal.flush();
+                                loggedIn = true;
+                            } else {
+                                terminal.writer().println("\u001B[31m" + authResult.getMessage() + "\u001B[0m");
+                                terminal.flush();
+                            }
+                        }
+
+                        if (!works) {
+                            break;
+                        }
+
+                        final String finalUsername = username;
+                        final String finalPassword = password;
+
                         try {
                             while (true) {
                                 String input = reader.readLine("> ");
                                 String[] tokens = input.strip().split(" ");
                                 String commandName = tokens[0];
                                 if (commandNamesList.contains(commandName)) {
-                                    CommandPayload commandPayload = new CommandPayload(commandName, tokens, null);
-            
+                                    CommandPayload commandPayload = new CommandPayload(commandName, tokens, null,
+                                            finalUsername, finalPassword, false);
+
                                     if (commandName.contains("add") || commandName.contains("update")) {
                                         commandPayload.setBand(consoleManager.askMusicBand());
                                     }
-            
+
                                     packets = (ArrayList<Packet>) Packet.packObject(clientUUID, commandPayload);
                                     Packet.clientSendPackets(clientSocket, packets, serverAddr, 37582);
-            
+
                                     receiveBuffer = new byte[1024];
                                     receivePacket = new DatagramPacket(receiveBuffer, receiveBuffer.length);
                                     clientSocket.receive(receivePacket);
-            
+
                                     packets = new ArrayList<>();
                                     receivedPacket = SerializationUtils.deserialize(receiveBuffer);
                                     packets.add(receivedPacket);
@@ -232,21 +312,25 @@ class MainClient {
                                     }
                                     CommandResult result = (CommandResult) Packet.restoreObject(packets);
                                     terminal.writer().println(result.getMessage());
-                                } else if (tokens[0].isBlank()) {} else if (tokens[0].equals("exit")) {
+                                } else if (tokens[0].isBlank()) {
+                                } else if (tokens[0].equals("exit")) {
                                     works = false;
                                     sendPacket = new Packet(clientUUID, 1, 0, null);
-                                    serializedPacket = SerializationUtils.serialize(sendPacket); 
+                                    serializedPacket = SerializationUtils.serialize(sendPacket);
                                     sendDatagramPacket = new DatagramPacket(serializedPacket, 1024, serverAddr, 37582);
                                     clientSocket.send(sendDatagramPacket);
                                     break;
                                 } else {
-                                    System.out.println("\u001B[31m" + input + " не распознано как имя команды. Введите help для справки." + "\u001B[0m");
+                                    System.out.println("\u001B[31m" + input
+                                            + " не распознано как имя команды. Введите help для справки."
+                                            + "\u001B[0m");
                                 }
                             }
                         } catch (UserInterruptException e) {
                             Packet sendPacketShutdown = new Packet(clientUUID, 1, 0, null);
-                            byte[] serializedPacketShutdown = SerializationUtils.serialize(sendPacketShutdown); 
-                            DatagramPacket sendDatagramPacketShutdown = new DatagramPacket(serializedPacketShutdown, 1024, serverAddr, 37582);
+                            byte[] serializedPacketShutdown = SerializationUtils.serialize(sendPacketShutdown);
+                            DatagramPacket sendDatagramPacketShutdown = new DatagramPacket(serializedPacketShutdown,
+                                    1024, serverAddr, 37582);
                             try {
                                 clientSocket.send(sendDatagramPacketShutdown);
                             } catch (IOException e1) {

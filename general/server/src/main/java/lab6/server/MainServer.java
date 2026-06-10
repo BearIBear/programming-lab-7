@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 
 import org.jline.terminal.Terminal;
@@ -25,64 +27,63 @@ import lab6.util.*;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import lab6.server.commands.Add;
-import lab6.server.commands.AddIfMax;
-import lab6.server.commands.Clear;
-import lab6.server.commands.Command;
-import lab6.server.commands.CountLessThanDescription;
-import lab6.server.commands.FilterContainsName;
-import lab6.server.commands.FilterGreaterThanGenre;
-import lab6.server.commands.Head;
-import lab6.server.commands.Help;
-import lab6.server.commands.Info;
-import lab6.server.commands.RemoveById;
-import lab6.server.commands.Save;
-import lab6.server.commands.Script;
-import lab6.server.commands.Show;
-import lab6.server.commands.Update;
-import lab6.server.managers.CollectionManager;
-import lab6.server.managers.CommandManager;
-import lab6.server.managers.FileManager;
+import lab6.server.commands.*;
+import lab6.server.managers.*;
 
+/**
+ * Главный класс сервера, реализующий многопоточную обработку запросов
+ *
+ * @author Михаил
+ */
 public class MainServer {
     private static final HashMap<UUID, ArrayList<Packet>> userPackets = new HashMap<>();
     private static final Logger log = LogManager.getLogger(MainServer.class);
-    public static void main(String[] args) {
-        String fileName = System.getenv("INPUT_FILENAME");
-        if (fileName == null || fileName.isBlank()) {
-            fileName = "data/Data.json";
-            log.warn("Env variable INPUT_FILENAME doesn't exist!");
-            log.warn("Defaulting to file: " + fileName);
-        }
 
+    // ThreadLocal для хранения имени текущего пользователя в потоке выполнения
+    // команды
+    public static final ThreadLocal<String> currentUser = new ThreadLocal<>();
+
+    public static void main(String[] args) {
         String[] fileNames = null;
         try {
             Stream<Path> pathStream = Files.list(Paths.get("./data/scripts/"));
-            fileNames = pathStream.filter(Files::isRegularFile).map(Path::getFileName).map(Path::toString).toArray(String[]::new);
+            fileNames = pathStream.filter(Files::isRegularFile).map(Path::getFileName).map(Path::toString)
+                    .toArray(String[]::new);
             pathStream.close();
-        } catch (IOException e) {}
-        
-        CollectionManager collectionManager = new CollectionManager();
-        FileManager fileManager = new FileManager(fileName);
-        fileManager.load(collectionManager);
+        } catch (IOException e) {
+            // Если директории скриптов нет, оставим пустым
+            fileNames = new String[0];
+        }
 
-        CommandManager commandManager = new CommandManager();
+        CollectionManager collectionManager = new CollectionManager();
+        DatabaseManager databaseManager = new DatabaseManager();
+
+        // Загружаем коллекцию из БД
+        databaseManager.loadCollection(collectionManager);
+
+        CommandManager commandManager = new CommandManager(databaseManager);
         commandManager.register(new Help(collectionManager));
         commandManager.register(new Info(collectionManager));
         commandManager.register(new Add(collectionManager));
         commandManager.register(new Show(collectionManager));
-        commandManager.register(new Save(collectionManager, fileManager));
         commandManager.register(new Clear(collectionManager));
         commandManager.register(new Update(collectionManager));
         commandManager.register(new RemoveById(collectionManager));
         commandManager.register(new Head(collectionManager));
         commandManager.register(new AddIfMax(collectionManager));
+        commandManager.register(new AddIfMin(collectionManager));
         commandManager.register(new CountLessThanDescription(collectionManager));
         commandManager.register(new Script(collectionManager));
         commandManager.register(new FilterContainsName(collectionManager));
         commandManager.register(new FilterGreaterThanGenre(collectionManager));
+
         Map<String, Command> commandsList = commandManager.getCommandsList();
         String[] commandNames = commandsList.keySet().toArray(String[]::new);
+
+        // Инициализация пулов потоков
+        ExecutorService readPool = Executors.newCachedThreadPool();
+        ExecutorService processingPool = Executors.newCachedThreadPool();
+        ExecutorService sendPool = Executors.newFixedThreadPool(10);
 
         try {
             Terminal terminal = TerminalBuilder.builder().system(true).nativeSignals(true).build();
@@ -90,76 +91,198 @@ public class MainServer {
             NonBlockingReader reader = terminal.reader();
             terminal.handle(Terminal.Signal.INT, signal -> {
                 log.info("Shutdown hook activator activated");
-                System.exit(0); 
+                System.exit(0);
             });
             String serverCommand = "";
             char readCharacter = 0;
-    
+
             try {
                 Selector selector = Selector.open();
                 DatagramChannel server = DatagramChannel.open();
                 server.bind(new InetSocketAddress(37582));
                 server.configureBlocking(false);
                 server.register(selector, SelectionKey.OP_READ);
-                ByteBuffer buffer = ByteBuffer.allocate(1024);
-                log.info("Server active, waiting for requests...");
+                log.info("Server active, waiting for requests on port 37582...");
                 boolean working = true;
 
                 StringBuilder stringBuilder = new StringBuilder();
-    
+
                 Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    log.info("Shutdown hook activated");
-                    commandsList.get("save").run(new String[1], null);
-                    System.out.println("Collection saved through shutdown hook");
+                    log.info("Shutdown hook activated, shutting down pools...");
+                    readPool.shutdown();
+                    processingPool.shutdown();
+                    sendPool.shutdown();
                 }));
+
+                final String[] finalFileNames = fileNames;
 
                 while (working) {
                     int selectionAmount = selector.selectNow();
                     if (selectionAmount > 0) {
                         SelectionKey selectedKey = selector.selectedKeys().toArray(SelectionKey[]::new)[0];
                         selector.selectedKeys().remove(selectedKey);
-                        log.info("Request received, attempting to work with it...");
-                        SocketAddress clientAddress = server.receive(buffer);
-                        buffer.flip();
-                        byte[] receivedData = new byte[buffer.remaining()];
-                        buffer.get(receivedData);
-                        buffer.clear();
-        
-                        Packet receivedPacket = SerializationUtils.deserialize(receivedData);
-                        UUID receivedUUID = receivedPacket.getClientUUID();
-                        if (receivedPacket.isConnectionDefining()) {
-                            if (userPackets.containsKey(receivedUUID)) {
-                                log.info("Client disconnected with UUID: " + receivedUUID);
-                            } else {
-                                userPackets.put(receivedUUID, new ArrayList<>());
-                                log.info("Client connected with UUID: " + receivedUUID);
-        
-                                ArrayList<Packet> packetsToSend = (ArrayList<Packet>) Packet.packObject(receivedUUID, commandNames);
-                                Packet.serverSendPackets(server, packetsToSend, clientAddress);
-        
-                                packetsToSend = (ArrayList<Packet>) Packet.packObject(receivedUUID, fileNames);
-                                Packet.serverSendPackets(server, packetsToSend, clientAddress);
-                            }
-                        } else {
-                            ArrayList<Packet> packets = userPackets.get(receivedUUID); 
-                            packets.add(receivedPacket);
-                            log.info("Packet received from client with UUID: " + receivedUUID);
-        
-                            if (packets.size() == receivedPacket.getPacketsAmount()) {
-                                CommandPayload commandPayload = (CommandPayload) Packet.restoreObject(packets);
-                                CommandResult result;
-                                if (!commandPayload.getCommandName().equals("save")) {
-                                    result = commandsList.get(commandPayload.getCommandName()).run(commandPayload.getArgs(), commandPayload.getBand());
-                                    commandManager.clearScriptFiles();
-                                    commandManager.setRecursionForcedExit(false);
-                                } else {
-                                    result = new CommandResult(true, "Ты чё");
+                        if (selectedKey.isReadable()) {
+                            // Многопоточное чтение запроса
+                            readPool.submit(() -> {
+                                try {
+                                    ByteBuffer buffer = ByteBuffer.allocate(1024);
+                                    SocketAddress clientAddress = server.receive(buffer);
+                                    if (clientAddress != null) {
+                                        buffer.flip();
+                                        byte[] receivedData = new byte[buffer.remaining()];
+                                        buffer.get(receivedData);
+
+                                        // Многопоточная обработка полученного запроса
+                                        processingPool.submit(() -> {
+                                            try {
+                                                Packet receivedPacket = SerializationUtils.deserialize(receivedData);
+                                                UUID receivedUUID = receivedPacket.getClientUUID();
+
+                                                if (receivedPacket.isConnectionDefining()) {
+                                                    synchronized (userPackets) {
+                                                        if (userPackets.containsKey(receivedUUID)) {
+                                                            log.info("Client disconnected with UUID: " + receivedUUID);
+                                                            userPackets.remove(receivedUUID);
+                                                        } else {
+                                                            userPackets.put(receivedUUID, new ArrayList<>());
+                                                            log.info("Client connected with UUID: " + receivedUUID);
+
+                                                            ArrayList<Packet> packetsToSend = (ArrayList<Packet>) Packet
+                                                                    .packObject(receivedUUID, commandNames);
+                                                            ArrayList<Packet> filesPackets = (ArrayList<Packet>) Packet
+                                                                    .packObject(receivedUUID, finalFileNames);
+
+                                                            sendPool.submit(() -> {
+                                                                try {
+                                                                    Packet.serverSendPackets(server, packetsToSend,
+                                                                            clientAddress);
+                                                                    Packet.serverSendPackets(server, filesPackets,
+                                                                            clientAddress);
+                                                                } catch (IOException e) {
+                                                                    log.error("Failed to send init packet to client: "
+                                                                            + e.getMessage());
+                                                                }
+                                                            });
+                                                        }
+                                                    }
+                                                } else {
+                                                    ArrayList<Packet> packets;
+                                                    boolean reassembled = false;
+                                                    synchronized (userPackets) {
+                                                        packets = userPackets.get(receivedUUID);
+                                                        if (packets == null) {
+                                                            packets = new ArrayList<>();
+                                                            userPackets.put(receivedUUID, packets);
+                                                        }
+                                                        packets.add(receivedPacket);
+                                                        if (packets.size() == receivedPacket.getPacketsAmount()) {
+                                                            reassembled = true;
+                                                            userPackets.put(receivedUUID, new ArrayList<>());
+                                                        }
+                                                    }
+
+                                                    if (reassembled) {
+                                                        CommandPayload commandPayload = (CommandPayload) Packet
+                                                                .restoreObject(packets);
+                                                        CommandResult result;
+
+                                                        String cmdName = commandPayload.getCommandName();
+                                                        String username = commandPayload.getUsername();
+                                                        String password = commandPayload.getPassword();
+
+                                                        // Обработка авторизации / регистрации
+                                                        if (cmdName.equals("login") || cmdName.equals("register")) {
+                                                            if (commandPayload.isRegister()) {
+                                                                boolean success = databaseManager.registerUser(username,
+                                                                        password);
+                                                                if (success) {
+                                                                    result = new CommandResult(true,
+                                                                            "Регистрация успешна! Вход выполнен.");
+                                                                } else {
+                                                                    result = new CommandResult(false,
+                                                                            "Пользователь с таким именем уже существует.");
+                                                                }
+                                                            } else {
+                                                                boolean success = databaseManager.validateUser(username,
+                                                                        password);
+                                                                if (success) {
+                                                                    result = new CommandResult(true,
+                                                                            "Вход выполнен успешно!");
+                                                                } else {
+                                                                    result = new CommandResult(false,
+                                                                            "Неверное имя пользователя или пароль.");
+                                                                }
+                                                            }
+                                                        } else {
+                                                            // Проверяем авторизацию для обычных команд
+                                                            boolean authorized = databaseManager.validateUser(username,
+                                                                    password);
+                                                            if (!authorized) {
+                                                                result = new CommandResult(false,
+                                                                        "Ошибка авторизации! Перезапустите клиент.");
+                                                            } else {
+                                                                currentUser.set(username);
+                                                                boolean isWrite = cmdName.equals("add") ||
+                                                                        cmdName.equals("add_if_max") ||
+                                                                        cmdName.equals("add_if_min") ||
+                                                                        cmdName.equals("clear") ||
+                                                                        cmdName.equals("remove_by_id") ||
+                                                                        cmdName.equals("update");
+
+                                                                if (isWrite) {
+                                                                    collectionManager.getLock().writeLock().lock();
+                                                                } else {
+                                                                    collectionManager.getLock().readLock().lock();
+                                                                }
+
+                                                                try {
+                                                                    if (commandsList.containsKey(cmdName)) {
+                                                                        result = commandsList.get(cmdName).run(
+                                                                                commandPayload.getArgs(),
+                                                                                commandPayload.getBand());
+                                                                        commandManager.clearScriptFiles();
+                                                                        commandManager.setRecursionForcedExit(false);
+                                                                    } else {
+                                                                        result = new CommandResult(false, "Команда "
+                                                                                + cmdName + " не зарегистрирована.");
+                                                                    }
+                                                                } finally {
+                                                                    if (isWrite) {
+                                                                        collectionManager.getLock().writeLock()
+                                                                                .unlock();
+                                                                    } else {
+                                                                        collectionManager.getLock().readLock().unlock();
+                                                                    }
+                                                                    currentUser.remove();
+                                                                }
+                                                            }
+                                                        }
+
+                                                        // Многопоточная отправка ответа
+                                                        final CommandResult finalResult = result;
+                                                        ArrayList<Packet> packetsToSend = (ArrayList<Packet>) Packet
+                                                                .packObject(receivedUUID, finalResult);
+                                                        sendPool.submit(() -> {
+                                                            try {
+                                                                Packet.serverSendPackets(server, packetsToSend,
+                                                                        clientAddress);
+                                                            } catch (IOException e) {
+                                                                log.error("Failed to send response: " + e.getMessage());
+                                                            }
+                                                        });
+                                                        log.info("Command " + cmdName + " handled from client: "
+                                                                + receivedUUID);
+                                                    }
+                                                }
+                                            } catch (Exception e) {
+                                                log.error("Error executing client payload: " + e.getMessage(), e);
+                                            }
+                                        });
+                                    }
+                                } catch (IOException e) {
+                                    log.error("Failed to read packet: " + e.getMessage());
                                 }
-                                ArrayList<Packet> packetsToSend = (ArrayList<Packet>) Packet.packObject(receivedUUID, result);
-                                Packet.serverSendPackets(server, packetsToSend, clientAddress);
-                                userPackets.put(receivedUUID, new ArrayList<>());
-                                log.info("Command " + commandPayload.getCommandName() + " executed from client with UUID: " + receivedUUID);
-                            }
+                            });
                         }
                     }
 
@@ -171,17 +294,19 @@ public class MainServer {
                     }
                     if (codeCharacter >= 0) {
                         readCharacter = (char) codeCharacter;
-                        if (readCharacter == '\r' || readCharacter == '\n' || codeCharacter == 10 || codeCharacter == 13 || codeCharacter == 3) {
+                        if (readCharacter == '\r' || readCharacter == '\n' || codeCharacter == 10 || codeCharacter == 13
+                                || codeCharacter == 3) {
                             System.out.print("\r\n");
                             serverCommand = stringBuilder.toString().trim();
                             stringBuilder.setLength(0);
                             if (serverCommand.equals("exit") || codeCharacter == 3) {
-                                log.info("You are absolutely right! We shouldn't just save the collection — we should shut down the server");
+                                log.info(
+                                        "You are absolutely right! We shouldn't just save the collection — we should shut down the server");
                                 System.exit(0);
                                 working = false;
                             } else if (serverCommand.equals("save")) {
-                                log.info("Collection saved");
-                                commandsList.get("save").run(new String[1], null);
+                                log.info(
+                                        "Сохранение в файлы больше не поддерживается. Все изменения автоматически пишутся в БД.");
                             }
                         } else if (codeCharacter == 8 || codeCharacter == 127) {
                             if (stringBuilder.length() != 0) {
@@ -198,8 +323,6 @@ public class MainServer {
                         }
                     }
                 }
-
-
             } catch (Exception e) {
                 e.printStackTrace();
             }

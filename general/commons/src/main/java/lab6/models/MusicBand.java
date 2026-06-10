@@ -18,6 +18,7 @@ public class MusicBand implements Comparable<MusicBand>, Serializable {
     private String description; //Поле может быть null
     private MusicGenre genre; //Поле может быть null
     private Person frontMan; //Поле не может быть null
+    private String ownerUsername;
     private static final long serialVersionUID = 1L;
 
     public MusicBand(String name, Coordinates coordinates, long numberOfParticipants, long singlesCount,
@@ -93,7 +94,7 @@ public class MusicBand implements Comparable<MusicBand>, Serializable {
     public String toString() {
         return "MusicBand [id=" + id + ", name=" + name + ", coordinates=" + coordinates + ", creationDate="
                 + creationDate + ", numberOfParticipants=" + numberOfParticipants + ", singlesCount=" + singlesCount
-                + ", description=" + description + ", genre=" + genre + ", frontMan=" + frontMan + "]";
+                + ", description=" + description + ", genre=" + genre + ", frontMan=" + frontMan + ", owner=" + ownerUsername + "]";
     }
 
     @Override
@@ -103,5 +104,13 @@ public class MusicBand implements Comparable<MusicBand>, Serializable {
 
     public void setId(long id) {
         this.id = id;
+    }
+
+    public String getOwnerUsername() {
+        return ownerUsername;
+    }
+
+    public void setOwnerUsername(String ownerUsername) {
+        this.ownerUsername = ownerUsername;
     }
 }

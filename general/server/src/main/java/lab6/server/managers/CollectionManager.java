@@ -6,6 +6,8 @@ import java.util.PriorityQueue;
 import lab6.models.MusicBand;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Менеджер коллекции для управления элементами типа MusicBand
@@ -15,12 +17,17 @@ import java.time.LocalDateTime;
 public class CollectionManager {
     private PriorityQueue<MusicBand> collection;
     private LocalDateTime initTime;
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private static long nextId = 1;
     private static ArrayList<Long> vacantIds = new ArrayList<>();
 
     public CollectionManager() {
         this.collection = new PriorityQueue<>();
         this.initTime = LocalDateTime.now(); 
+    }
+
+    public ReadWriteLock getLock() {
+        return lock;
     }
 
     public PriorityQueue<MusicBand> getCollection() {
@@ -33,6 +40,10 @@ public class CollectionManager {
 
     public void addElement(MusicBand band) {
         CollectionManager.fixId(band);
+        collection.add(band);
+    }
+
+    public void addLoadedElement(MusicBand band) {
         collection.add(band);
     }
 
