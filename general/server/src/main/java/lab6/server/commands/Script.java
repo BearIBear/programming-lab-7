@@ -10,7 +10,8 @@ import lab6.server.managers.CollectionManager;
 import lab6.util.CommandResult;
 
 /**
- * Команда для считывания и исполнения скрипта из указанного файла с контролем рекурсии
+ * Команда для считывания и исполнения скрипта из указанного файла с контролем
+ * рекурсии
  *
  * @author Михаил
  */
@@ -28,7 +29,7 @@ public class Script extends Command {
         }
 
         try {
-            File file = new File("data/" + args[1]);
+            File file = new File("data/scripts/" + args[1]);
             Scanner fileReader = new Scanner(file);
             CommandResult result = new CommandResult(true, "");
             while ((result.isContinueFlag()) && fileReader.hasNextLine()) {
@@ -38,7 +39,8 @@ public class Script extends Command {
 
                 if (commandManager.checkRecursionExhaustion(file)) {
                     if (!commandManager.isRecursionForcedExit()) {
-                        commandResult.addToMessage("\u001B[31m" + this.name + " : Превышен лимит глубины рекурсии" + "\u001B[0m");
+                        commandResult.addToMessage(
+                                "\u001B[31m" + this.name + " : Превышен лимит глубины рекурсии" + "\u001B[0m");
                     }
                     commandManager.setRecursionForcedExit(true);
                     fileReader.close();
@@ -54,7 +56,8 @@ public class Script extends Command {
             }
             fileReader.close();
         } catch (FileNotFoundException e) {
-            commandResult.addToMessage("\u001B[31m" + this.name + " : Файл не найден. Попытались прочитать файл " + args[1] + ", но не вышло :(" + "\u001B[0m");
+            commandResult.addToMessage("\u001B[31m" + this.name + " : Файл не найден. Попытались прочитать файл "
+                    + args[1] + ", но не вышло :(" + "\u001B[0m");
             return commandResult;
         }
         return commandResult;

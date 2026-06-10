@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -50,7 +51,7 @@ public class MainServer {
             fileNames = pathStream.filter(Files::isRegularFile).map(Path::getFileName).map(Path::toString)
                     .toArray(String[]::new);
             pathStream.close();
-            log.info("Filenames loaded correctly! Here they are: " + fileNames);
+            log.info("Filenames loaded correctly! Here they are: " + Arrays.toString(fileNames));
         } catch (IOException e) {
             fileNames = new String[0];
             log.warn("Filenames didn't load properly!");

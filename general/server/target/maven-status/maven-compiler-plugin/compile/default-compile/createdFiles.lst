@@ -7,6 +7,7 @@ lab6\server\managers\FileManager.class
 lab6\server\commands\RemoveById.class
 lab6\server\commands\Script.class
 lab6\server\commands\Show.class
+lab6\server\managers\PasswordManager.class
 lab6\server\commands\AddIfMin.class
 lab6\server\commands\Info.class
 lab6\server\commands\FilterContainsName.class
