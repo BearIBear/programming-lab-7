@@ -9,7 +9,7 @@ import java.security.NoSuchAlgorithmException;
  *
  * @author Михаил
  */
-public class PasswordHasher {
+public class PasswordManager {
     public static String hashPassword(String password) {
         if (password == null) {
             return "";

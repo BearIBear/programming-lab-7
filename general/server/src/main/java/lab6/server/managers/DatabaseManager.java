@@ -123,7 +123,7 @@ public class DatabaseManager {
         String sql = "INSERT INTO users (username, password_hash) VALUES (?, ?)";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, username);
-            stmt.setString(2, PasswordHasher.hashPassword(password));
+            stmt.setString(2, PasswordManager.hashPassword(password));
             stmt.executeUpdate();
             log.info("User registered successfully: " + username);
             return true;
@@ -142,7 +142,7 @@ public class DatabaseManager {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String hash = rs.getString("password_hash");
-                    return hash.equals(PasswordHasher.hashPassword(password));
+                    return hash.equals(PasswordManager.hashPassword(password));
                 }
             }
         } catch (SQLException e) {
