@@ -216,13 +216,13 @@ class MainClient {
                             terminal.writer().println("3. Выйти");
                             terminal.flush();
                             String choice = reader.readLine("> ").trim();
-                            if (choice.equals("3") || choice.equalsIgnoreCase("exit")) {
+                            if (choice.equals("3") || choice.equalsIgnoreCase("Выйти")) {
                                 works = false;
                                 break;
                             }
-                            boolean isRegister = choice.equals("2") || choice.equalsIgnoreCase("register");
-                            if (!choice.equals("1") && !choice.equals("2") && !choice.equalsIgnoreCase("login")
-                                    && !choice.equalsIgnoreCase("register")) {
+                            boolean isRegister = choice.equals("2") || choice.equalsIgnoreCase("Зарегистрироваться");
+                            if (!choice.equals("1") && !choice.equals("2") && !choice.equalsIgnoreCase("Войти")
+                                    && !choice.equalsIgnoreCase("Зарегистрироваться")) {
                                 terminal.writer().println("Неверный выбор. Пожалуйста, введите 1 или 2.");
                                 terminal.flush();
                                 continue;

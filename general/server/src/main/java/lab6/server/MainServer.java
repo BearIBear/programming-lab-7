@@ -51,14 +51,12 @@ public class MainServer {
                     .toArray(String[]::new);
             pathStream.close();
         } catch (IOException e) {
-            // Если директории скриптов нет, оставим пустым
             fileNames = new String[0];
         }
 
         CollectionManager collectionManager = new CollectionManager();
         DatabaseManager databaseManager = new DatabaseManager();
 
-        // Загружаем коллекцию из БД
         databaseManager.loadCollection(collectionManager);
 
         CommandManager commandManager = new CommandManager(databaseManager);
@@ -80,7 +78,6 @@ public class MainServer {
         Map<String, Command> commandsList = commandManager.getCommandsList();
         String[] commandNames = commandsList.keySet().toArray(String[]::new);
 
-        // Инициализация пулов потоков
         ExecutorService readPool = Executors.newCachedThreadPool();
         ExecutorService processingPool = Executors.newCachedThreadPool();
         ExecutorService sendPool = Executors.newFixedThreadPool(10);
@@ -122,7 +119,7 @@ public class MainServer {
                         SelectionKey selectedKey = selector.selectedKeys().toArray(SelectionKey[]::new)[0];
                         selector.selectedKeys().remove(selectedKey);
                         if (selectedKey.isReadable()) {
-                            // Многопоточное чтение запроса
+                            // Попросим поток прочитать пакет
                             readPool.submit(() -> {
                                 try {
                                     ByteBuffer buffer = ByteBuffer.allocate(1024);
@@ -132,7 +129,7 @@ public class MainServer {
                                         byte[] receivedData = new byte[buffer.remaining()];
                                         buffer.get(receivedData);
 
-                                        // Многопоточная обработка полученного запроса
+                                        // Попросим поток обработать полученный пакет
                                         processingPool.submit(() -> {
                                             try {
                                                 Packet receivedPacket = SerializationUtils.deserialize(receivedData);
@@ -190,17 +187,17 @@ public class MainServer {
                                                         String username = commandPayload.getUsername();
                                                         String password = commandPayload.getPassword();
 
-                                                        // Обработка авторизации / регистрации
+                                                        // Авторизация и регистрация
                                                         if (cmdName.equals("login") || cmdName.equals("register")) {
                                                             if (commandPayload.isRegister()) {
                                                                 boolean success = databaseManager.registerUser(username,
                                                                         password);
                                                                 if (success) {
                                                                     result = new CommandResult(true,
-                                                                            "Регистрация успешна! Вход выполнен.");
+                                                                            "Регистрация успешна! Вход выполнен");
                                                                 } else {
                                                                     result = new CommandResult(false,
-                                                                            "Пользователь с таким именем уже существует.");
+                                                                            "Пользователь с таким именем уже существует");
                                                                 }
                                                             } else {
                                                                 boolean success = databaseManager.validateUser(username,
@@ -210,16 +207,16 @@ public class MainServer {
                                                                             "Вход выполнен успешно!");
                                                                 } else {
                                                                     result = new CommandResult(false,
-                                                                            "Неверное имя пользователя или пароль.");
+                                                                            "Неверное имя пользователя или пароль");
                                                                 }
                                                             }
                                                         } else {
-                                                            // Проверяем авторизацию для обычных команд
+                                                            // Проверка авторизации для дефолтных команд
                                                             boolean authorized = databaseManager.validateUser(username,
                                                                     password);
                                                             if (!authorized) {
                                                                 result = new CommandResult(false,
-                                                                        "Ошибка авторизации! Перезапустите клиент.");
+                                                                        "Ошибка авторизации! Перезапустите клиент");
                                                             } else {
                                                                 currentUser.set(username);
                                                                 boolean isWrite = cmdName.equals("add") ||
@@ -243,10 +240,10 @@ public class MainServer {
                                                                         commandManager.clearScriptFiles();
                                                                         commandManager.setRecursionForcedExit(false);
                                                                     } else {
-                                                                        result = new CommandResult(false, "Команда "
-                                                                                + cmdName + " не зарегистрирована.");
+                                                                        result = new CommandResult(false,
+                                                                                "Ты чё нам тут отправляешь поддельные комманды?");
                                                                     }
-                                                                } finally {
+                                                                } finally { // Иначе есть шанс, что замок не отпустится
                                                                     if (isWrite) {
                                                                         collectionManager.getLock().writeLock()
                                                                                 .unlock();
@@ -258,7 +255,7 @@ public class MainServer {
                                                             }
                                                         }
 
-                                                        // Многопоточная отправка ответа
+                                                        // Попросим один из потоков отправить ответ
                                                         final CommandResult finalResult = result;
                                                         ArrayList<Packet> packetsToSend = (ArrayList<Packet>) Packet
                                                                 .packObject(receivedUUID, finalResult);
@@ -267,10 +264,10 @@ public class MainServer {
                                                                 Packet.serverSendPackets(server, packetsToSend,
                                                                         clientAddress);
                                                             } catch (IOException e) {
-                                                                log.error("Failed to send response: " + e.getMessage());
+                                                                log.error("Responce failure: " + e.getMessage());
                                                             }
                                                         });
-                                                        log.info("Command " + cmdName + " handled from client: "
+                                                        log.info("Command " + cmdName + " executed from client: "
                                                                 + receivedUUID);
                                                     }
                                                 }
@@ -304,9 +301,6 @@ public class MainServer {
                                         "You are absolutely right! We shouldn't just save the collection — we should shut down the server");
                                 System.exit(0);
                                 working = false;
-                            } else if (serverCommand.equals("save")) {
-                                log.info(
-                                        "Сохранение в файлы больше не поддерживается. Все изменения автоматически пишутся в БД.");
                             }
                         } else if (codeCharacter == 8 || codeCharacter == 127) {
                             if (stringBuilder.length() != 0) {

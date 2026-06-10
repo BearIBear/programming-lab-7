@@ -1,6 +1,5 @@
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\commands\Update.java
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\commands\Show.java
-D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\managers\PasswordHasher.java
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\managers\CommandManager.java
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\commands\AddIfMin.java
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\commands\Add.java
@@ -19,5 +18,6 @@ D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\c
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\commands\Save.java
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\commands\Clear.java
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\managers\FileManager.java
+D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\managers\PasswordManager.java
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\commands\Command.java
 D:\ITMO\Programming\programming-lab-7\general\server\src\main\java\lab6\server\managers\CollectionManager.java

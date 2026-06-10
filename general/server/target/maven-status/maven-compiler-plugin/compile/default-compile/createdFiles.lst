@@ -5,7 +5,6 @@ lab6\server\commands\Head.class
 lab6\server\managers\CommandManager.class
 lab6\server\managers\FileManager.class
 lab6\server\commands\RemoveById.class
-lab6\server\managers\PasswordHasher.class
 lab6\server\commands\Script.class
 lab6\server\commands\Show.class
 lab6\server\commands\AddIfMin.class
