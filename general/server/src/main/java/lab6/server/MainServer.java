@@ -50,8 +50,10 @@ public class MainServer {
             fileNames = pathStream.filter(Files::isRegularFile).map(Path::getFileName).map(Path::toString)
                     .toArray(String[]::new);
             pathStream.close();
+            log.info("Filenames loaded correctly! Here they are: " + fileNames);
         } catch (IOException e) {
             fileNames = new String[0];
+            log.warn("Filenames didn't load properly!");
         }
 
         CollectionManager collectionManager = new CollectionManager();
